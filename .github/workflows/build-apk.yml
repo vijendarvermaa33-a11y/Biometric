@@ -1,0 +1,71 @@
+name: Build Biometric APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Biometric Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Android project ZIP
+        run: |
+          test -f Android.zip
+          unzip -t Android.zip
+
+      - name: Extract Android project
+        run: |
+          mkdir -p AndroidBuild
+          unzip -q Android.zip -d AndroidBuild
+          test -f AndroidBuild/settings.gradle
+          test -f AndroidBuild/build.gradle
+          test -f AndroidBuild/app/build.gradle
+          test -f AndroidBuild/app/src/main/AndroidManifest.xml
+          test -f AndroidBuild/app/src/main/res/drawable-nodpi/splash_screen.png
+          grep -q 'Theme.AppCompat.Light.NoActionBar' AndroidBuild/app/src/main/res/values/styles.xml
+          grep -q 'employee/login.php' AndroidBuild/app/src/main/java/in/vijendarverma/biometric/MainActivity.java
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Generate Gradle Wrapper
+        working-directory: AndroidBuild
+        run: gradle wrapper --gradle-version 8.9
+
+      - name: Build Biometric APK
+        working-directory: AndroidBuild
+        run: ./gradlew clean assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK
+        run: |
+          test -f AndroidBuild/app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p output
+          cp AndroidBuild/app/build/outputs/apk/debug/app-debug.apk output/Biometric.apk
+          ls -lh output/Biometric.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Biometric-APK
+          path: output/Biometric.apk
+          if-no-files-found: error
+          retention-days: 30
